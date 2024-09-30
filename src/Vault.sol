@@ -9,11 +9,12 @@ import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 contract Vault is ERC4626Fees {
     uint8 public immutable MAX_PAYOUT_PERCENT;
     address public immutable PAYMENT_CONTRACT;
+
     using Math for uint256;
 
     event PayWin(address indexed receiver, uint256 assets);
 
-    error ExceededMaxWinAmount(uint maxWinAmount, uint recivedWinAmount);
+    error ExceededMaxWinAmount(uint256 maxWinAmount, uint256 recivedWinAmount);
 
     error NotPaymentContract();
 
@@ -28,19 +29,15 @@ contract Vault is ERC4626Fees {
         PAYMENT_CONTRACT = _paymentContract;
     }
 
-    function maxWinAmount() public view returns (uint) {
-        return
-            totalAssets().mulDiv(MAX_PAYOUT_PERCENT, 100, Math.Rounding.Ceil);
+    function maxWinAmount() public view returns (uint256) {
+        return totalAssets().mulDiv(MAX_PAYOUT_PERCENT, 100, Math.Rounding.Ceil);
     }
 
     function payoutWin(address receiver, uint256 assets) external {
         require(msg.sender == PAYMENT_CONTRACT, NotPaymentContract());
-        uint _maxWinAmount = maxWinAmount();
+        uint256 _maxWinAmount = maxWinAmount();
 
-        require(
-            _maxWinAmount >= assets,
-            ExceededMaxWinAmount(_maxWinAmount, assets)
-        );
+        require(_maxWinAmount >= assets, ExceededMaxWinAmount(_maxWinAmount, assets));
 
         ERC20(asset()).transfer(receiver, assets);
 
