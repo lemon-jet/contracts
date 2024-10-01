@@ -26,7 +26,7 @@ contract Vault is Ownable, ERC4626Fees {
         uint8 _maxPayoutPercent,
         string memory _name,
         string memory _symbol
-    )  Ownable(_initialOwner) ERC20(_name, _symbol) ERC4626(_asset) {
+    ) Ownable(_initialOwner) ERC20(_name, _symbol) ERC4626(_asset) {
         MAX_PAYOUT_PERCENT = _maxPayoutPercent;
         paymentContract = _paymentContract;
     }
@@ -46,8 +46,7 @@ contract Vault is Ownable, ERC4626Fees {
         emit PayWin(receiver, assets);
     }
 
-
-    function setPaymentContract(address _paymentContract) onlyOwner external {
+    function setPaymentContract(address _paymentContract) external onlyOwner {
         paymentContract = _paymentContract;
     }
 }
