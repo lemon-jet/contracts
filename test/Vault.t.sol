@@ -8,13 +8,13 @@ import {Vault} from "../src/Vault.sol";
 import {HelperContract} from "./HelperContract.sol";
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 
-contract TestLemonJetVault is Test, HelperContract {
+contract TestVault is Test, HelperContract {
     Asset public asset;
     Vault vault;
 
     function setUp() public {
         asset = new Asset(address(this));
-        vault = new Vault(asset, PAYMENT_CONTRACT, 1, "LemonJet Vault", "VLJT");
+        vault = new Vault(asset, PAYMENT_CONTRACT, address(this),        1, "LemonJet Vault", "VLJT");
         asset.approve(address(vault), type(uint256).max);
     }
 
