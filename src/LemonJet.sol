@@ -1,32 +1,51 @@
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {VRFV2PlusWrapperConsumerBase} from "@chainlink/lib/chainlink-brownie-contracts/dev/vrf/libraris/VRFCoordinatorV2.sol";
+import {VRFV2PlusWrapperConsumerBase} from "@chainlink-contracts-1.2.0/src/v0.8/vrf/dev/VRFV2PlusWrapperConsumerBase.sol";
+import {VRFV2PlusClient} from "@chainlink-contracts-1.2.0/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 
-import {ILemonJet} from "./ILemonJet.sol";
+import {ILemonJet} from "./interfaces/ILemonJet.sol";
 
-contract LemonJet is ILemonJet {
+import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import {ILemonJetToken} from "./interfaces/ILemonJetToken.sol";
+
+contract LemonJet is ILemonJet, Ownable, VRFV2PlusWrapperConsumerBase {
+    error WagerAboveLimit();
+    error InvalidMultiplier();
+    error AlreadyAwaiting();
+    error InvalidReferrer();
+    error NotTreasury();
+    error WithdrawFailed();
+
     using SafeERC20 for IERC20;
 
-    address public constant ljt;
-    address public constant tresuary;
-
     uint256 public constant referreeReward = 30; // %
-
     uint256 public constant rake = 70; // %
-
     uint256 public constant houseEdge = 1; // %
 
-    bytes32 public constant keyHash;
-    uint64 public constant subId;
+    // Depends on the number of requested values that you want sent to the
+    // fulfillRandomWords() function. Test and adjust
+    // this limit based on the network that you select, the size of the request,
+    // and the processing of the callback request in the fulfillRandomWords()
+    // function.
+    uint32 public callbackGasLimit = 100000;
 
-    IVRFCoordinatorV2 public IChainLinkVRF;
+    // For this example, retrieve 2 random values in one request.
+    // Cannot exceed VRFV2Wrapper.getConfig().maxNumWords.
+    uint32 public numWords = 1;
+
+    // The default is 3, but you can set this higher.
+    uint16 public requestConfirmations = 3;
 
     mapping(address => JetGame) public games;
     mapping(uint256 => address) public requestToPlayer;
     // referee => referral
     mapping(address => address) private referrals;
+
+    address public immutable ljt;
+    address public immutable treasury;
 
     struct JetGame {
         uint256 requestId;
@@ -36,43 +55,36 @@ contract LemonJet is ILemonJet {
         uint64 blockNumber;
     }
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
+    constructor(
+        address _wrapperAddress,
+        address _ljt,
+        address _treasury
+    ) Ownable(msg.sender) VRFV2PlusWrapperConsumerBase(_wrapperAddress) {
+        ljt = _ljt;
+        treasury = _treasury;
     }
-
-    function initialize(
-        address _ChainLinkVRF,
-        bytes32 _keyHash,
-        uint64 _subId,
-        address _tresuary
-    ) public initializer {
-        __Ownable_init();
-        tresuary = _tresuary;
-        subId = _subId;
-        IChainLinkVRF = IVRFCoordinatorV2(_ChainLinkVRF);
-        keyHash = _keyHash;
-        referreeReward = 30; // %
-        rake = 70; // %
-        houseEdge = 1; // %
-    } // https://docs.chain.link/vrf/v2/subscription/supported-networks#arbitrum-sepolia-testnet:~:text=ARBITRUM%20SEPOLIA%20TESTNET%20FAUCET
 
     function play(
         uint256 wager,
         uint256 multiplier,
         address referrer
-    ) external nonReentrant {
+    ) external {
         uint256 maxWager = getMaxWager();
-        require(wager <= maxWager, "WagerAboveLimit");
-        require(
-            multiplier >= 1_01 && multiplier <= 1000_00,
-            "Invalid Multiplier"
-        ); // 1.01x 100x
-        require(games[msg.sender].requestId == 0, "Already awaiting");
+        if (wager > maxWager) {
+            revert WagerAboveLimit();
+        }
+        if (multiplier < 1_01 || multiplier > 1000_00) {
+            // 1.01x 100x
+            revert InvalidMultiplier();
+        }
+
+        if (games[msg.sender].requestId != 0) {
+            revert AlreadyAwaiting();
+        }
 
         _setReferree(msg.sender, referrer);
         _transferWager(wager, msg.sender);
-        uint256 requestId = _requestRandomWords(1);
+        (uint256 requestId, ) = _requestRandomWord();
 
         games[msg.sender] = JetGame(
             requestId,
@@ -93,28 +105,11 @@ contract LemonJet is ILemonJet {
         );
     }
 
-    /**
-     * @dev function called by Chainlink VRF with random numbers
-     * @param requestId id provided when the request was made
-     * @param randomWords array of random numbers
-     */
-    function rawFulfillRandomWords(
-        uint256 requestId,
-        uint256[] memory randomWords
-    ) external {
-        require(
-            msg.sender == address(IChainLinkVRF),
-            "OnlyCoordinatorCanFulfill"
-        );
-        fulfillRandomWords(requestId, randomWords);
-    }
-
     function fulfillRandomWords(
         uint256 requestId,
         uint256[] memory randomWords
-    ) internal {
+    ) internal override {
         address playerAddress = requestToPlayer[requestId];
-        require(playerAddress != address(0), "Zero address");
         JetGame storage game = games[playerAddress];
 
         uint256 r = randomWords[0] % 1000_00;
@@ -141,7 +136,7 @@ contract LemonJet is ILemonJet {
             emit SentToReferree(refReward);
         }
 
-        _transferPayout(tresuary, fee);
+        _transferPayout(treasury, fee);
 
         emit OutcomeEvent(
             requestId,
@@ -181,15 +176,24 @@ contract LemonJet is ILemonJet {
         }
     }
 
-    function _requestRandomWords(
-        uint32 numWords
-    ) internal returns (uint256 s_requestId) {
-        s_requestId = VRFCoordinatorV2Interface(IChainLinkVRF)
-            .requestRandomWords(keyHash, subId, 1, 2500000, numWords);
+    function _requestRandomWord()
+        internal
+        returns (uint256 s_requestId, uint256 requestPrice)
+    {
+        //TODO: calculate to constant
+        bytes memory extraArgs = VRFV2PlusClient._argsToBytes(
+            VRFV2PlusClient.ExtraArgsV1({nativePayment: true})
+        );
+        return
+            requestRandomnessPayInNative(
+                callbackGasLimit,
+                requestConfirmations,
+                1,
+                extraArgs
+            );
     }
 
     function _transferWager(uint256 wager, address msgSender) internal {
-        require(wager != 0, "ZeroWager");
         ILemonJetToken(ljt).transferWager(msgSender, address(this), wager);
     }
 
@@ -209,15 +213,15 @@ contract LemonJet is ILemonJet {
     }
 
     function withdraw(uint256 value) public {
-        require(msg.sender == tresuary, "Not tresuary");
-        (bool s, ) = payable(tresuary).call{value: value}("");
-        require(s, "Box: Withdraw went wrong");
+        if (msg.sender != treasury) revert NotTreasury();
+        (bool success, ) = payable(treasury).call{value: value}("");
+        if (!success) {
+            revert WithdrawFailed();
+        }
     }
 
-    function setLemonJetToken(address _ljt) public onlyOwner {
-        require(_ljt != address(0), "Zero address");
-        require(ljt == address(0), "Can't change lemon jet address");
-        ljt = _ljt;
+    function setCallbackGasLimit(uint32 limit) public onlyOwner {
+        callbackGasLimit = limit;
     }
 
     receive() external payable {}

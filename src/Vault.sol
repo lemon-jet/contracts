@@ -32,14 +32,18 @@ contract Vault is Ownable, ERC4626Fees {
     }
 
     function maxWinAmount() public view returns (uint256) {
-        return totalAssets().mulDiv(MAX_PAYOUT_PERCENT, 100, Math.Rounding.Ceil);
+        return
+            totalAssets().mulDiv(MAX_PAYOUT_PERCENT, 100, Math.Rounding.Ceil);
     }
 
     function payoutWin(address receiver, uint256 assets) external {
-        require(msg.sender == paymentContract, NotPaymentContract());
+        if (msg.sender != paymentContract) {
+            revert NotPaymentContract();
+        }
         uint256 _maxWinAmount = maxWinAmount();
-
-        require(_maxWinAmount >= assets, ExceededMaxWinAmount(_maxWinAmount, assets));
+        if (assets > _maxWinAmount) {
+            revert ExceededMaxWinAmount(_maxWinAmount, assets);
+        }
 
         ERC20(asset()).transfer(receiver, assets);
 
