@@ -5,7 +5,7 @@ import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/Safe
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {VRFV2PlusWrapperConsumerBase} from "@chainlink-contracts-1.2.0/src/v0.8/vrf/dev/VRFV2PlusWrapperConsumerBase.sol";
 import {VRFV2PlusClient} from "@chainlink-contracts-1.2.0/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
-
+import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {ILemonJet} from "./interfaces/ILemonJet.sol";
 
 import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
@@ -144,7 +144,7 @@ contract LemonJet is ILemonJet, Ownable, VRFV2PlusWrapperConsumerBase {
             game.wager,
             payout,
             r,
-            (10000000 * ((1_00 - houseEdge) / 100)) / r,
+            Math.max((10000000 * (1_00 - houseEdge)) / 100 / r, 100),
             threshold,
             game.multiplier
         );
