@@ -10,12 +10,12 @@ contract LemonJetTest is Test {
     LemonJet ljtGame;
     LemonJetToken ljtToken;
 
-    // function setUp() public {
-    //     ljtGame = new LemonJet(address(wrapper));
-    //     ljtToken = new LemonJetToken("LemonJet Token", "LJT", address(ljtGame));
-    // }
-    //
-    // function testPlay() public {
-    //     ljtGame.play(1 ether, 10, address(2));
-    // }
+    function setUp() public {
+        // ljtGame = new LemonJet();
+        ljtToken = new LemonJetToken("LemonJet Token", "LJT", address(ljtGame));
+    }
+
+    function testPlay() public {
+        ljtGame.play(1 ether, 10, address(2));
+    }
 }

@@ -60,15 +60,15 @@ contract LemonJet is ILemonJet, Ownable, VRFV2PlusWrapperConsumerBase {
         address _ljt,
         address _treasury
     ) Ownable(msg.sender) VRFV2PlusWrapperConsumerBase(_wrapperAddress) {
-        ljt = _ljt;
         treasury = _treasury;
+        ljt = _ljt;
     }
 
     function play(
         uint256 wager,
         uint256 multiplier,
         address referrer
-    ) external {
+    ) external payable {
         uint256 maxWager = getMaxWager();
         if (wager > maxWager) {
             revert WagerAboveLimit();
@@ -180,7 +180,7 @@ contract LemonJet is ILemonJet, Ownable, VRFV2PlusWrapperConsumerBase {
         internal
         returns (uint256 s_requestId, uint256 requestPrice)
     {
-        //TODO: calculate to constant
+        //TODO: use yul
         bytes memory extraArgs = VRFV2PlusClient._argsToBytes(
             VRFV2PlusClient.ExtraArgsV1({nativePayment: true})
         );
