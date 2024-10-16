@@ -6,21 +6,13 @@ contract Create2 {
 
     error Create2FailedDeployment();
 
-    function deploy(
-        bytes32 salt,
-        bytes memory creationCode
-    ) external payable returns (address addr) {
+    function deploy(bytes32 salt, bytes memory creationCode) external payable returns (address addr) {
         if (creationCode.length == 0) {
             revert Create2EmptyBytecode();
         }
 
         assembly {
-            addr := create2(
-                callvalue(),
-                add(creationCode, 0x20),
-                mload(creationCode),
-                salt
-            )
+            addr := create2(callvalue(), add(creationCode, 0x20), mload(creationCode), salt)
         }
 
         if (addr == address(0)) {
@@ -28,10 +20,7 @@ contract Create2 {
         }
     }
 
-    function computeAddress(
-        bytes32 salt,
-        bytes32 creationCodeHash
-    ) external view returns (address addr) {
+    function computeAddress(bytes32 salt, bytes32 creationCodeHash) external view returns (address addr) {
         address contractAddress = address(this);
 
         assembly {

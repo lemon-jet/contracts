@@ -12,7 +12,7 @@ contract VaultDeployScript is Script {
         address owner = vm.envAddress("OWNER_ADDRESS");
         vm.startBroadcast(deployerPrivateKey);
         Asset asset = new Asset(owner);
-        Vault vault = new Vault(asset, owner, owner, 1, "Vault USDC", "VUSDC");
+        Vault vault = new Vault(asset, owner, "Vault USDC", "VUSDC");
         vm.stopBroadcast();
     }
 }

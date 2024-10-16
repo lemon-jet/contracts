@@ -1,33 +1,27 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
-
+pragma solidity ^0.8.28;
+import {IVault} from "./interfaces/IVault.sol";
 import {ERC4626Fees} from "./ERC4626Fees.sol";
 import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
 import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC4626} from "openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 
-contract Vault is Ownable, ERC4626Fees {
+contract Vault is IVault, ERC4626Fees {
+    uint256 public constant MAX_PAYOUT_PERCENT = 1;
     address public paymentContract;
-    uint8 public immutable MAX_PAYOUT_PERCENT;
 
     using Math for uint256;
-
-    event PayWin(address indexed receiver, uint256 assets);
-
-    error ExceededMaxWinAmount(uint256 maxWinAmount, uint256 recivedWinAmount);
-
-    error NotPaymentContract();
+    using SafeERC20 for IERC20;
 
     constructor(
         ERC20 _asset,
         address _paymentContract,
-        address _initialOwner,
-        uint8 _maxPayoutPercent,
         string memory _name,
         string memory _symbol
-    ) Ownable(_initialOwner) ERC20(_name, _symbol) ERC4626(_asset) {
-        MAX_PAYOUT_PERCENT = _maxPayoutPercent;
+    ) ERC20(_name, _symbol) ERC4626(_asset) {
         paymentContract = _paymentContract;
     }
 
@@ -37,20 +31,10 @@ contract Vault is Ownable, ERC4626Fees {
     }
 
     function payoutWin(address receiver, uint256 assets) external {
-        if (msg.sender != paymentContract) {
-            revert NotPaymentContract();
-        }
-        uint256 _maxWinAmount = maxWinAmount();
-        if (assets > _maxWinAmount) {
-            revert ExceededMaxWinAmount(_maxWinAmount, assets);
-        }
+        require(msg.sender == paymentContract, NotPaymentContract());
 
-        ERC20(asset()).transfer(receiver, assets);
+        IERC20(asset()).safeTransfer(receiver, assets);
 
-        emit PayWin(receiver, assets);
-    }
-
-    function setPaymentContract(address _paymentContract) external onlyOwner {
-        paymentContract = _paymentContract;
+        emit PayoutWin(receiver, assets);
     }
 }

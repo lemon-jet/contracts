@@ -9,18 +9,14 @@ import {LemonJetToken} from "../test/mocks/LemonJetToken.sol";
 
 contract LemonJetDeployScript is Script {
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address treasury = vm.envAddress("TREASURY_ADDRESS");
-        address vrfWrapper = vm.envAddress("VRF_WRAPPER_ADDRESS");
-        vm.startBroadcast(deployerPrivateKey);
-        LemonJetToken ljtToken = new LemonJetToken("LemonJetToken", "LJT");
-        LemonJet ljtGame = new LemonJet(
-            vrfWrapper,
-            address(ljtToken),
-            treasury
-        );
-        ljtToken.mint(address(ljtGame), 1000_000_000 * 1 ether);
-        ljtToken.setLj(address(ljtGame));
-        vm.stopBroadcast();
+        // uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        // address treasury = vm.envAddress("TREASURY_ADDRESS");
+        // address vrfWrapper = vm.envAddress("VRF_WRAPPER_ADDRESS");
+        // vm.startBroadcast(deployerPrivateKey);
+        // LemonJetToken ljtToken = new LemonJetToken("LemonJetToken", "LJT");
+        // LemonJet ljtGame = new LemonJet(vrfWrapper, address(ljtToken), treasury);
+        // ljtToken.mint(address(ljtGame), 1000_000_000 * 1 ether);
+        // ljtToken.setLj(address(ljtGame));
+        // vm.stopBroadcast();
     }
 }

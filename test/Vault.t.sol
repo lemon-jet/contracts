@@ -14,14 +14,7 @@ contract VaultTest is Test, HelperContract {
 
     function setUp() public {
         asset = new Asset(address(this));
-        vault = new Vault(
-            asset,
-            PAYMENT_CONTRACT,
-            address(this),
-            1,
-            "LemonJet Vault",
-            "VLJT"
-        );
+        vault = new Vault(asset, address(this), "LemonJet Vault", "VLJT");
         asset.approve(address(vault), type(uint256).max);
     }
 

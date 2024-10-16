@@ -1,29 +1,25 @@
-// SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+// SPDX-License-Identifier: GPL-3.0
+pragma solidity ^0.8.28;
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {VRFV2PlusWrapperConsumerBase} from "@chainlink-contracts-1.2.0/src/v0.8/vrf/dev/VRFV2PlusWrapperConsumerBase.sol";
 import {VRFV2PlusClient} from "@chainlink-contracts-1.2.0/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {ILemonJet} from "./interfaces/ILemonJet.sol";
-
 import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import {ILemonJet} from "./interfaces/ILemonJet.sol";
+import {IVault} from "./interfaces/IVault.sol";
+
 import {ILemonJetToken} from "./interfaces/ILemonJetToken.sol";
 
-contract LemonJet is ILemonJet, Ownable, VRFV2PlusWrapperConsumerBase {
-    error WagerAboveLimit();
-    error InvalidMultiplier();
-    error AlreadyAwaiting();
-    error InvalidReferrer();
-    error NotTreasury();
-    error WithdrawFailed();
-
+contract LemonJet is ILemonJet, VRFV2PlusWrapperConsumerBase {
     using SafeERC20 for IERC20;
 
-    uint256 public constant referreeReward = 30; // %
-    uint256 public constant rake = 70; // %
     uint256 public constant houseEdge = 1; // %
+
+    address public immutable ljtVault;
+    address public immutable usdcVault;
+    address public immutable treasury;
 
     // Depends on the number of requested values that you want sent to the
     // fulfillRandomWords() function. Test and adjust
@@ -32,125 +28,60 @@ contract LemonJet is ILemonJet, Ownable, VRFV2PlusWrapperConsumerBase {
     // function.
     uint32 public callbackGasLimit = 100000;
 
-    // For this example, retrieve 2 random values in one request.
-    // Cannot exceed VRFV2Wrapper.getConfig().maxNumWords.
-    uint32 public numWords = 1;
-
-    // The default is 3, but you can set this higher.
-    uint16 public requestConfirmations = 3;
-
-    mapping(address => JetGame) public games;
-    mapping(uint256 => address) public requestToPlayer;
+    mapping(uint256 => JetGame) public ljtGames;
+    mapping(uint256 => JetGame) public usdcGames;
     // referee => referral
     mapping(address => address) private referrals;
 
-    address public immutable ljt;
-    address public immutable treasury;
-
     struct JetGame {
-        uint256 requestId;
         uint256 wager;
-        uint256 multiplier;
         address player;
-        uint64 blockNumber;
+        uint16 multiplier;
     }
 
     constructor(
-        address _wrapperAddress,
-        address _ljt,
+        address wrapperAddress,
+        address _ljtVault,
+        address _usdcVault,
         address _treasury
-    ) Ownable(msg.sender) VRFV2PlusWrapperConsumerBase(_wrapperAddress) {
+    ) VRFV2PlusWrapperConsumerBase(wrapperAddress) {
+        IERC20(IVault(_ljtVault).asset()).approve(
+            address(_ljtVault),
+            type(uint256).max
+        );
+        IERC20(IVault(_usdcVault).asset()).approve(
+            address(_ljtVault),
+            type(uint256).max
+        );
         treasury = _treasury;
-        ljt = _ljt;
+        ljtVault = _ljtVault;
+        usdcVault = _usdcVault;
     }
 
-    function play(
+    function _play(
         uint256 wager,
-        uint256 multiplier,
-        address referrer
-    ) external payable {
-        uint256 maxWager = getMaxWager();
-        if (wager > maxWager) {
-            revert WagerAboveLimit();
-        }
-        if (multiplier < 1_01 || multiplier > 1000_00) {
-            // 1.01x 100x
-            revert InvalidMultiplier();
-        }
-
-        if (games[msg.sender].requestId != 0) {
-            revert AlreadyAwaiting();
-        }
-
-        _setReferree(msg.sender, referrer);
-        _transferWager(wager, msg.sender);
+        uint16 multiplier,
+        address referrer,
+        IVault vault
+    ) private returns (JetGame memory game) {
+        require(
+            multiplier >= 1_01 && multiplier <= 5000_00,
+            InvalidMultiplier()
+        );
+        uint256 _maxWinAmount = vault.maxWinAmount();
+        require((wager * multiplier) / 100 <= _maxWinAmount, WagerAboveLimit());
+        address asset = vault.asset();
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), wager);
+        _setReferralIfNotExists(msg.sender, referrer);
         (uint256 requestId, ) = _requestRandomWord();
+        game = JetGame(wager, msg.sender, multiplier);
 
-        games[msg.sender] = JetGame(
-            requestId,
-            wager,
-            multiplier,
-            msg.sender,
-            uint64(block.number)
-        );
-
-        requestToPlayer[requestId] = msg.sender;
-
-        emit PlayEvent(
-            requestId,
-            msg.sender,
-            wager,
-            multiplier,
-            uint64(block.number)
-        );
-    }
-
-    function fulfillRandomWords(
-        uint256 requestId,
-        uint256[] memory randomWords
-    ) internal override {
-        address playerAddress = requestToPlayer[requestId];
-        JetGame storage game = games[playerAddress];
-
-        uint256 r = randomWords[0] % 1000_00;
-
-        (uint256 payout, uint256 threshold) = calculateWinnings(
-            game.wager,
-            r,
-            game.multiplier,
-            houseEdge
-        );
-
-        // При победе
-        if (payout != 0) {
-            _transferPayout(playerAddress, payout);
-        }
-
-        uint256 fee = game.wager / 100;
-        if (referrals[playerAddress] != address(0)) {
-            uint256 refReward = (fee * referreeReward) / 100;
-            // Send fee to referree
-            fee -= refReward;
-            _transferPayout(referrals[playerAddress], refReward);
-
-            emit SentToReferree(refReward);
-        }
-
-        _transferPayout(treasury, fee);
-
-        emit OutcomeEvent(
-            requestId,
-            playerAddress,
-            game.wager,
-            payout,
-            r,
-            Math.max((10000000 * (1_00 - houseEdge)) / 100 / r, 100),
-            threshold,
-            game.multiplier
-        );
-
-        delete (requestToPlayer[requestId]);
-        delete (games[playerAddress]);
+        // emit PlayEvent(
+        //     requestId,
+        //     msg.sender,
+        //     wager,
+        //     multiplier
+        // );
     }
 
     function calculateWinnings(
@@ -160,9 +91,9 @@ contract LemonJet is ILemonJet, Ownable, VRFV2PlusWrapperConsumerBase {
         uint256 commission_rate
     ) public pure returns (uint256, uint256) {
         // Рассчитываем порог выигрыша как обратную величину коэффициента выигрыша, затем корректируем с учетом комиссии
-        uint256 base_threshold = 1000_0000 / win_multiplier;
+        uint256 base_threshold = 1000_00_00 / win_multiplier;
         uint256 adjusted_threshold = (base_threshold *
-            (1_00 - commission_rate)) / 100; // Уменьшаем порог на комиссию
+            (100 - commission_rate)) / 100; // Уменьшаем порог на комиссию
 
         // Проверяем, находится ли случайное число в пределах скорректированного порога для выигрыша
         if (random_number <= adjusted_threshold) {
@@ -176,53 +107,95 @@ contract LemonJet is ILemonJet, Ownable, VRFV2PlusWrapperConsumerBase {
         }
     }
 
+    function fulfillRandomWords(
+        uint256 requestId,
+        uint256[] memory randomWords
+    ) internal override {
+        JetGame storage game = ljtGames[requestId];
+        IVault vault = IVault(ljtVault);
+
+        if (game.player == address(0)) {
+            game = usdcGames[requestId];
+            vault = IVault(usdcVault);
+        }
+
+        address playerAddress = game.player;
+
+        uint256 randomNumber = (randomWords[0] % 1000_00);
+
+        (uint256 payout, uint256 threshold) = calculateWinnings(
+            game.wager,
+            randomNumber,
+            game.multiplier,
+            houseEdge
+        );
+
+        // При победе
+        if (payout != 0) {
+            _payoutWin(vault, playerAddress, payout);
+        }
+
+        uint256 fee = game.wager / 100; // 1% fee
+        if (referrals[playerAddress] != address(0)) {
+            uint256 referralReward = (fee * 30) / 100; // 30% of fee
+            // Send fee to referree
+            fee -= referralReward;
+            vault.deposit(referralReward, referrals[playerAddress]);
+            // emit SentToReferree(refReward);
+        }
+
+        uint256 treasuryCommission = (fee * 20) / 100; // 20% of fee
+        fee -= treasuryCommission;
+        vault.deposit(treasuryCommission, treasury);
+        IERC20(vault.asset()).safeTransfer(address(vault), fee);
+
+        emit OutcomeEvent(
+            requestId,
+            playerAddress,
+            game.wager,
+            payout,
+            randomNumber,
+            (1000_00_00 * (100 - houseEdge)) / 100 / randomNumber,
+            threshold,
+            game.multiplier
+        );
+
+        // delete (games[requestId]); mb not needed
+    }
+
     function _requestRandomWord()
-        internal
+        private
         returns (uint256 s_requestId, uint256 requestPrice)
     {
         //TODO: use yul
+
         bytes memory extraArgs = VRFV2PlusClient._argsToBytes(
             VRFV2PlusClient.ExtraArgsV1({nativePayment: true})
         );
-        return
-            requestRandomnessPayInNative(
-                callbackGasLimit,
-                requestConfirmations,
-                1,
-                extraArgs
-            );
+        return requestRandomnessPayInNative(callbackGasLimit, 0, 1, extraArgs);
+
+        // assembly {
+        //     let ptr := mload(0x40)
+        //     mstore(ptr, 0x92fd1338)
+        //     ptr := add(ptr, 0x20)
+        //     mstore(ptr, 1)
+        //     let res := call(gas(), link_contract_addr, amount_wei,
+        //         sub(ptr, 4), 0x24, 0, 0)
+        //     let ret_size := returndatasize()
+        //     if ret_size { returndatacopy(ptr, 0, ret_size) }
+        //     if iszero(res) { revert(ptr, ret_size) }
+        // }
     }
 
-    function _transferWager(uint256 wager, address msgSender) internal {
-        ILemonJetToken(ljt).transferWager(msgSender, address(this), wager);
+    function _payoutWin(IVault vault, address to, uint256 amount) private {
+        vault.payoutWin(to, amount);
     }
 
-    function _transferPayout(address to, uint256 amount) internal {
-        ILemonJetToken(ljt).transferReward(to, amount);
-    }
-
-    function getMaxWager() public view returns (uint256) {
-        uint256 balance = IERC20(ljt).balanceOf(address(this));
-        uint256 maxWager = (balance * 1122448) / 100000000; // 1.122448% of bankroll size
-        return maxWager;
-    }
-
-    function _setReferree(address referee, address referral) internal {
+    function _setReferralIfNotExists(
+        address referee,
+        address referral
+    ) private {
         if (referrals[referee] != address(0)) return;
         referrals[referee] = referral;
     }
-
-    function withdraw(uint256 value) public {
-        if (msg.sender != treasury) revert NotTreasury();
-        (bool success, ) = payable(treasury).call{value: value}("");
-        if (!success) {
-            revert WithdrawFailed();
-        }
-    }
-
-    function setCallbackGasLimit(uint32 limit) public onlyOwner {
-        callbackGasLimit = limit;
-    }
-
-    receive() external payable {}
 }

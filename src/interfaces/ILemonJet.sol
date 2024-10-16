@@ -1,29 +1,34 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.20;
+pragma solidity 0.8.28;
 
 interface ILemonJet {
     event PlayEvent(
         uint256 requestId,
         address player,
         uint256 wager,
-        uint256 multiplier,
-        uint64 blockNumber
+        uint256 multiplier
     );
 
     event RefundEvent(address player, uint256 wager);
 
-    event SentToReferree(uint referreeReward);
+    event SentToReferree(uint256 referreeReward);
 
     event OutcomeEvent(
         uint256 requestId,
         address indexed playerAddress,
-        uint wager,
-        uint payout,
-        uint randomNumber,
-        uint x,
-        uint threshold,
-        uint multiplier
+        uint256 wager,
+        uint256 payout,
+        uint256 randomNumber,
+        uint256 x,
+        uint256 threshold,
+        uint256 multiplier
     );
 
-    event TransferPayoutFailed(address player, uint payout);
+    event TransferPayoutFailed(address player, uint256 payout);
+
+    error WagerAboveLimit();
+    error InvalidMultiplier();
+    error InvalidReferrer();
+    error NotTreasury();
+    error WithdrawFailed();
 }
