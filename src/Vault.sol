@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
+
 import {IVault} from "./interfaces/IVault.sol";
 import {ERC4626Fees} from "./ERC4626Fees.sol";
 import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
@@ -16,18 +17,15 @@ contract Vault is IVault, ERC4626Fees {
     using Math for uint256;
     using SafeERC20 for IERC20;
 
-    constructor(
-        ERC20 _asset,
-        address _paymentContract,
-        string memory _name,
-        string memory _symbol
-    ) ERC20(_name, _symbol) ERC4626(_asset) {
+    constructor(ERC20 _asset, address _paymentContract, string memory _name, string memory _symbol)
+        ERC20(_name, _symbol)
+        ERC4626(_asset)
+    {
         paymentContract = _paymentContract;
     }
 
     function maxWinAmount() public view returns (uint256) {
-        return
-            totalAssets().mulDiv(MAX_PAYOUT_PERCENT, 100, Math.Rounding.Ceil);
+        return totalAssets().mulDiv(MAX_PAYOUT_PERCENT, 100, Math.Rounding.Ceil);
     }
 
     function payoutWin(address receiver, uint256 assets) external {

@@ -2,12 +2,7 @@
 pragma solidity 0.8.28;
 
 interface ILemonJet {
-    event PlayEvent(
-        uint256 requestId,
-        address player,
-        uint256 wager,
-        uint256 multiplier
-    );
+    event PlayEvent(uint256 requestId, address player, uint256 wager, uint256 multiplier);
 
     event RefundEvent(address player, uint256 wager);
 

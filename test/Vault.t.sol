@@ -24,19 +24,12 @@ contract VaultTest is Test, HelperContract {
 
         vault.deposit(1 ether, address(this));
         vault.redeem(
-            vault.previewWithdraw(
-                vault.previewRedeem(vault.balanceOf(address(this)))
-            ),
-            address(this),
-            address(this)
+            vault.previewWithdraw(vault.previewRedeem(vault.balanceOf(address(this)))), address(this), address(this)
         );
 
         uint256 afterWithdrawBalance = asset.balanceOf(address(this));
         // assertEq(beforeDepositBalance - afterWithdrawBalance <= Math.mulDiv(...), true);
-        console2.log(
-            "beforeDepositBalance - afterWithdrawBalance",
-            beforeDepositBalance - afterWithdrawBalance
-        );
+        console2.log("beforeDepositBalance - afterWithdrawBalance", beforeDepositBalance - afterWithdrawBalance);
     }
 
     function testDepositAndGreaterWithdraw() public {

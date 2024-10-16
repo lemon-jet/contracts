@@ -12,7 +12,6 @@ import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
 import {ILemonJetToken} from "./interfaces/ILemonJetToken.sol";
 
 contract LemonJetEntropy is ILemonJet, Ownable, IEntropyConsumer {
-
     using SafeERC20 for IERC20;
 
     uint256 public constant referreeReward = 30; // %
@@ -55,7 +54,6 @@ contract LemonJetEntropy is ILemonJet, Ownable, IEntropyConsumer {
             // 1.01x 500x
             revert InvalidMultiplier();
         }
-
 
         _setReferree(msg.sender, referrer);
         _transferWager(wager, msg.sender);
