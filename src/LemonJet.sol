@@ -59,6 +59,7 @@ contract LemonJet is ILemonJet, Vault, VRFV2PlusWrapperConsumerBase {
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), wager);
         _setReferralIfNotExists(referrer);
         (uint256 requestId, ) = _requestRandomWord();
+        requestIdToPlayer[requestId] = msg.sender;
         games[msg.sender] = JetGame(wager, multiplier);
         emit PlayEvent(requestId, msg.sender, wager, multiplier);
     }
