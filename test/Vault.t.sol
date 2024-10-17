@@ -14,7 +14,7 @@ contract VaultTest is Test, HelperContract {
 
     function setUp() public {
         asset = new Asset(address(this));
-        vault = new Vault(asset, address(this), "LemonJet Vault", "VLJT");
+        vault = new Vault(address(asset), "LemonJet Vault", "VLJT");
         asset.approve(address(vault), type(uint256).max);
     }
 
@@ -24,12 +24,19 @@ contract VaultTest is Test, HelperContract {
 
         vault.deposit(1 ether, address(this));
         vault.redeem(
-            vault.previewWithdraw(vault.previewRedeem(vault.balanceOf(address(this)))), address(this), address(this)
+            vault.previewWithdraw(
+                vault.previewRedeem(vault.balanceOf(address(this)))
+            ),
+            address(this),
+            address(this)
         );
 
         uint256 afterWithdrawBalance = asset.balanceOf(address(this));
         // assertEq(beforeDepositBalance - afterWithdrawBalance <= Math.mulDiv(...), true);
-        console2.log("beforeDepositBalance - afterWithdrawBalance", beforeDepositBalance - afterWithdrawBalance);
+        console2.log(
+            "beforeDepositBalance - afterWithdrawBalance",
+            beforeDepositBalance - afterWithdrawBalance
+        );
     }
 
     function testDepositAndGreaterWithdraw() public {
@@ -42,19 +49,5 @@ contract VaultTest is Test, HelperContract {
         vault.withdraw(10 ether, address(this), address(this));
         uint256 afterWithdrawBalance = asset.balanceOf(address(this));
         assertEq(beforeDepositBalance < afterWithdrawBalance, true);
-    }
-
-    function testFailtReciveAssetExeededMaxWinAmount() public {
-        address winner = address(2);
-        asset.mint(address(vault), 10 ether);
-        vm.prank(PAYMENT_CONTRACT);
-        vault.payoutWin(winner, 10 ether);
-        assertEq(asset.balanceOf(winner), 10 ether);
-    }
-
-    function testFailReciveAsset() public {
-        address winner = address(2);
-        asset.mint(address(vault), 10 ether);
-        vault.payoutWin(winner, 10 ether);
     }
 }

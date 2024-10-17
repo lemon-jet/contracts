@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 import {LemonJet} from "../src/LemonJet.sol";
-import {Vault} from "../src/Vault.sol";
+import {ReferralsLemonJet} from "../src/Referrals.sol";
 import {VRFV2PlusClient} from "@chainlink-contracts-1.2.0/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 import {Deployer} from "../src/utils/create3/Deployer.sol";
 
@@ -20,9 +20,8 @@ contract LemonJetTest is Test {
     address constant playerAddress = address(4);
     address constant referralAddress = address(5);
     ERC20Mock ljtToken;
+    ReferralsLemonJet referrals;
     ERC20Mock usdcToken;
-    Vault ljtVault;
-    Vault usdcVault;
     LemonJet ljtGame;
 
     MockLinkToken private s_linkToken;
@@ -32,68 +31,31 @@ contract LemonJetTest is Test {
     function setUp() public {
         s_linkToken = new MockLinkToken();
         s_wrapper = new MockVRFV2PlusWrapper(address(s_linkToken), address(1));
-
         ljtToken = new ERC20Mock();
-        usdcToken = new ERC20Mock();
-
-        bytes32 ljtVaultSalt = "LJT_VAULT";
-        bytes32 usdcVaultSalt = "USDC_VAULT";
-        bytes32 ljtGameSalt = "LJT_GAME";
-
-        bytes memory ljtVaultCreationCode = abi.encodePacked(type(Vault).creationCode);
-        bytes memory usdcVaultCreationCode = abi.encodePacked(type(Vault).creationCode);
-        bytes memory ljtGameCreationCode = abi.encodePacked(type(LemonJet).creationCode);
-        Deployer deployer = new Deployer();
-
-        address ljtVaultAddress = deployer.predictAddr(ljtVaultSalt);
-        address usdcVaultAddress = deployer.predictAddr(usdcVaultSalt);
-        address ljtGameAddress = deployer.predictAddr(ljtGameSalt);
-
-        ljtVault = Vault(
-            deployer.deploy(
-                ljtVaultSalt,
-                abi.encodePacked(ljtVaultCreationCode, abi.encode(ljtToken, ljtGameAddress, "Vault LJT", "VLJT"))
-            )
+        referrals = new ReferralsLemonJet();
+        ljtGame = new LemonJet(
+            address(s_wrapper),
+            treasury,
+            address(ljtToken),
+            address(referrals),
+            "Vault LemonJet",
+            "VLJT"
         );
-        usdcVault = Vault(
-            deployer.deploy(
-                usdcVaultSalt,
-                abi.encodePacked(usdcVaultCreationCode, abi.encode(usdcToken, ljtGameAddress, "Vault USDC", "VUSDC"))
-            )
-        );
-
-        ljtGame = LemonJet(
-            deployer.deploy(
-                ljtGameSalt,
-                abi.encodePacked(
-                    ljtGameCreationCode, abi.encode(address(s_wrapper), ljtVaultAddress, usdcVaultAddress, address(0x1))
-                )
-            )
-        );
-
-        ljtToken.mint(playerAddress, 1 ether);
-        usdcToken.mint(playerAddress, 1 ether);
-
-        ljtToken.mint(ljtVaultAddress, 500 ether);
-        usdcToken.mint(usdcVaultAddress, 500 ether);
-
+        ljtToken.mint(address(ljtGame), 500 ether);
+        ljtToken.mint(playerAddress, 500 ether);
         vm.prank(playerAddress);
-        ljtToken.approve(ljtGameAddress, type(uint256).max);
-        usdcToken.approve(ljtGameAddress, type(uint256).max);
-
-        assertEq(ljtVault.paymentContract(), address(ljtGame));
-        assertEq(usdcVault.paymentContract(), address(ljtGame));
-        assertEq(ljtGame.ljtVault(), address(ljtVault));
-        assertEq(ljtGame.usdcVault(), address(usdcVault));
-        assertEq(address(ljtToken), ljtVault.asset());
-        assertEq(address(usdcToken), usdcVault.asset());
+        ljtToken.approve(address(ljtGame), UINT256_MAX);
     }
 
     function testPlayLjt() public {
         vm.prank(playerAddress);
         vm.deal(playerAddress, 1 ether);
-        uint256 requestId = ljtGame.playLjt{value: 1 ether}(1 ether, referralAddress, 150);
-        (uint256 wager, address player, uint16 multiplier) = ljtGame.ljtGames(requestId);
+        ljtGame.play{value: 1 ether}(1 ether, referralAddress, 150);
+        uint256 requestId = s_wrapper.lastRequestId();
+
+        address player = ljtGame.requestIdToPlayer(requestId);
+
+        (uint256 wager, uint16 multiplier) = ljtGame.games(player);
         assertEq(wager, 1 ether);
         assertEq(player, playerAddress);
         assertEq(multiplier, 150);

@@ -12,27 +12,23 @@ import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 contract Vault is IVault, ERC4626Fees {
     uint256 public constant MAX_PAYOUT_PERCENT = 1;
-    address public paymentContract;
 
     using Math for uint256;
     using SafeERC20 for IERC20;
 
-    constructor(ERC20 _asset, address _paymentContract, string memory _name, string memory _symbol)
-        ERC20(_name, _symbol)
-        ERC4626(_asset)
-    {
-        paymentContract = _paymentContract;
-    }
+    constructor(
+        address _asset,
+        string memory _name,
+        string memory _symbol
+    ) ERC20(_name, _symbol) ERC4626(IERC20(_asset)) {}
 
     function maxWinAmount() public view returns (uint256) {
-        return totalAssets().mulDiv(MAX_PAYOUT_PERCENT, 100, Math.Rounding.Ceil);
+        return
+            totalAssets().mulDiv(MAX_PAYOUT_PERCENT, 100, Math.Rounding.Ceil);
     }
 
-    function payoutWin(address receiver, uint256 assets) external {
-        require(msg.sender == paymentContract, NotPaymentContract());
-
+    function payoutWin(address receiver, uint256 assets) internal {
         IERC20(asset()).safeTransfer(receiver, assets);
-
         emit PayoutWin(receiver, assets);
     }
 }
