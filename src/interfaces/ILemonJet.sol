@@ -23,6 +23,7 @@ interface ILemonJet {
 
     error WagerAboveLimit();
     error InvalidMultiplier();
+    error AlreadyInGame();
     error InvalidReferrer();
     error NotTreasury();
     error WithdrawFailed();

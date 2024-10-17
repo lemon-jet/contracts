@@ -13,6 +13,11 @@ abstract contract ERC4626Fees is ERC4626 {
     using Math for uint256;
 
     uint256 private constant _BASIS_POINT_SCALE = 1e4;
+    address public immutable reserveFund;
+
+    constructor(address _reserveFund) {
+        reserveFund = _reserveFund;
+    }
 
     // === Overrides ===
 
@@ -39,7 +44,7 @@ abstract contract ERC4626Fees is ERC4626 {
 
         uint256 shares = previewWithdraw(assets);
         _withdraw(_msgSender(), receiver, owner, assets, shares);
-
+        _mint(reserveFund, (shares * 10) / _BASIS_POINT_SCALE); // mint 0.1% to reserve fund
         return shares;
     }
 
@@ -54,6 +59,7 @@ abstract contract ERC4626Fees is ERC4626 {
 
         uint256 assets = previewRedeem(shares);
         _withdraw(_msgSender(), receiver, owner, assets, shares);
+        _mint(reserveFund, (shares * 10) / _BASIS_POINT_SCALE); // mint 0.1% to reserve fund
 
         return assets;
     }
@@ -61,7 +67,7 @@ abstract contract ERC4626Fees is ERC4626 {
     // === Fee configuration ===
 
     function _exitFeeBasisPoints() internal view virtual returns (uint256) {
-        return 50; // replace with e.g. 100 for 1%
+        return 60; // replace with e.g. 100 for 1%
     }
 
     // === Fee operations ===

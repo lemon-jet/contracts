@@ -16,18 +16,22 @@ contract Vault is IVault, ERC4626Fees {
     using Math for uint256;
     using SafeERC20 for IERC20;
 
-    constructor(
-        address _asset,
-        string memory _name,
-        string memory _symbol
-    ) ERC20(_name, _symbol) ERC4626(IERC20(_asset)) {}
+    constructor(address _asset, address _reserveFund, string memory _name, string memory _symbol)
+        ERC20(_name, _symbol)
+        ERC4626Fees(_reserveFund)
+        ERC4626(IERC20(_asset))
+    {}
 
     function maxWinAmount() public view returns (uint256) {
-        return
-            totalAssets().mulDiv(MAX_PAYOUT_PERCENT, 100, Math.Rounding.Ceil);
+        return totalAssets().mulDiv(MAX_PAYOUT_PERCENT, 100, Math.Rounding.Ceil);
     }
 
-    function payoutWin(address receiver, uint256 assets) internal {
+    function _mintSharesByAssets(address receiver, uint256 assets) internal {
+        uint256 shares = previewDeposit(assets);
+        _mint(receiver, shares);
+    }
+
+    function _payoutWin(address receiver, uint256 assets) internal {
         IERC20(asset()).safeTransfer(receiver, assets);
         emit PayoutWin(receiver, assets);
     }

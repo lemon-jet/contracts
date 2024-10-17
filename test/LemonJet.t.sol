@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 import {LemonJet} from "../src/LemonJet.sol";
-import {ReferralsLemonJet} from "../src/Referrals.sol";
+import {ReferralsLemonJet} from "../src/ReferralsLemonJet.sol";
 import {VRFV2PlusClient} from "@chainlink-contracts-1.2.0/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 import {Deployer} from "../src/utils/create3/Deployer.sol";
 
@@ -33,14 +33,8 @@ contract LemonJetTest is Test {
         s_wrapper = new MockVRFV2PlusWrapper(address(s_linkToken), address(1));
         ljtToken = new ERC20Mock();
         referrals = new ReferralsLemonJet();
-        ljtGame = new LemonJet(
-            address(s_wrapper),
-            treasury,
-            address(ljtToken),
-            address(referrals),
-            "Vault LemonJet",
-            "VLJT"
-        );
+        ljtGame =
+            new LemonJet(address(s_wrapper), treasury, address(ljtToken), address(referrals), "Vault LemonJet", "VLJT");
         ljtToken.mint(address(ljtGame), 500 ether);
         ljtToken.mint(playerAddress, 500 ether);
         vm.prank(playerAddress);
@@ -55,8 +49,9 @@ contract LemonJetTest is Test {
 
         address player = ljtGame.requestIdToPlayer(requestId);
 
-        (uint256 wager, uint16 multiplier) = ljtGame.games(player);
+        (uint256 wager, uint16 multiplier, uint8 isRunning) = ljtGame.games(player);
         assertEq(wager, 1 ether);
+        assertEq(isRunning, 2);
         assertEq(player, playerAddress);
         assertEq(multiplier, 150);
 
@@ -65,6 +60,10 @@ contract LemonJetTest is Test {
         randomWords[0] = UINT256_MAX;
 
         ljtGame.rawFulfillRandomWords(requestId, randomWords);
+
+        (,, isRunning) = ljtGame.games(player);
+
+        assertEq(isRunning, 1);
     }
 
     // function testReleaseLjt() public {
