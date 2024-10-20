@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 import {LemonJet} from "../src/LemonJet.sol";
-import {Asset} from "../test/Asset.sol";
 import {LemonJetToken} from "../test/mocks/LemonJetToken.sol";
 
 contract LemonJetDeployScript is Script {

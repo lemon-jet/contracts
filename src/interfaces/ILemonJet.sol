@@ -2,7 +2,12 @@
 pragma solidity 0.8.28;
 
 interface ILemonJet {
-    event PlayEvent(uint256 requestId, address player, uint256 wager, uint256 multiplier);
+    event PlayEvent(
+        uint256 requestId,
+        address player,
+        uint256 wager,
+        uint256 multiplier
+    );
 
     event RefundEvent(address player, uint256 wager);
 
@@ -11,17 +16,15 @@ interface ILemonJet {
     event OutcomeEvent(
         uint256 requestId,
         address indexed playerAddress,
-        uint256 wager,
         uint256 payout,
         uint256 randomNumber,
-        uint256 x,
-        uint256 threshold,
-        uint256 multiplier
+        uint256 x
     );
 
     event TransferPayoutFailed(address player, uint256 payout);
 
-    error WagerAboveLimit();
+    error WagerAboveLimit(uint256);
+    error WagerBelowLimit(uint256);
     error InvalidMultiplier();
     error AlreadyInGame();
     error InvalidReferrer();

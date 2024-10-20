@@ -3,5 +3,6 @@
 pragma solidity ^0.8.20;
 
 abstract contract HelperContract {
-    address public constant PAYMENT_CONTRACT = address(1);
+    address constant reserveFund = address(3);
+    address constant player = address(4);
 }
