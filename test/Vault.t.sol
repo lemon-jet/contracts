@@ -14,12 +14,7 @@ contract VaultTest is Test, HelperContract {
 
     function setUp() public {
         asset = new ERC20Mock();
-        vault = new Vault(
-            address(asset),
-            reserveFund,
-            "LemonJet Vault",
-            "VLJT"
-        );
+        vault = new Vault(address(asset), reserveFund, "LemonJet Vault", "VLJT");
         asset.mint(player, 1 ether);
         vm.startPrank(player);
         asset.approve(address(vault), type(uint256).max);
@@ -30,24 +25,14 @@ contract VaultTest is Test, HelperContract {
 
         vault.deposit(1 ether, player);
         console2.log(vault.balanceOf(player));
-        vault.withdraw(
-            vault.previewRedeem(vault.balanceOf(player)),
-            player,
-            player
-        );
+        vault.withdraw(vault.previewRedeem(vault.balanceOf(player)), player, player);
 
         console2.log(asset.balanceOf(address(vault)));
 
         uint256 afterWithdrawBalance = asset.balanceOf(player);
-        console2.log(
-            "beforeDepositBalance - afterWithdrawBalance",
-            beforeDepositBalance - afterWithdrawBalance
-        );
+        console2.log("beforeDepositBalance - afterWithdrawBalance", beforeDepositBalance - afterWithdrawBalance);
 
-        console2.log(
-            "reserveFund Balance in shares",
-            vault.balanceOf(reserveFund)
-        );
+        console2.log("reserveFund Balance in shares", vault.balanceOf(reserveFund));
     }
 
     function testDepositAndGreaterWithdraw() public {

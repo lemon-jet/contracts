@@ -14,17 +14,13 @@ abstract contract ERC4626Fees is ERC4626 {
     // === Overrides ===
 
     /// @dev Preview adding an exit fee on withdraw. See {IERC4626-previewWithdraw}.
-    function previewWithdraw(
-        uint256 assets
-    ) public view virtual override returns (uint256) {
+    function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
         uint256 fee = _feeOnRaw(assets, _exitFeeBasisPoints);
         return super.previewWithdraw(assets + fee);
     }
 
     /// @dev Preview taking an exit fee on redeem. See {IERC4626-previewRedeem}.
-    function previewRedeem(
-        uint256 shares
-    ) public view virtual override returns (uint256) {
+    function previewRedeem(uint256 shares) public view virtual override returns (uint256) {
         uint256 assets = super.previewRedeem(shares);
         return assets - _feeOnTotal(assets, _exitFeeBasisPoints);
     }
@@ -32,11 +28,7 @@ abstract contract ERC4626Fees is ERC4626 {
     /**
      * @dev See {IERC4626-withdraw}.
      */
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address owner
-    ) public virtual override returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address owner) public virtual override returns (uint256) {
         uint256 maxAssets = maxWithdraw(owner);
         if (assets > maxAssets) {
             revert ERC4626ExceededMaxWithdraw(owner, assets, maxAssets);
@@ -50,11 +42,7 @@ abstract contract ERC4626Fees is ERC4626 {
     /**
      * @dev See {IERC4626-redeem}.
      */
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) public virtual override returns (uint256) {
+    function redeem(uint256 shares, address receiver, address owner) public virtual override returns (uint256) {
         uint256 maxShares = maxRedeem(owner);
         if (shares > maxShares) {
             revert ERC4626ExceededMaxRedeem(owner, shares, maxShares);
@@ -69,20 +57,13 @@ abstract contract ERC4626Fees is ERC4626 {
 
     /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees.
     /// Used in {IERC4626-mint} and {IERC4626-withdraw} operations.
-    function _feeOnRaw(
-        uint256 assets,
-        uint256 feeBasisPoints
-    ) private pure returns (uint256) {
+    function _feeOnRaw(uint256 assets, uint256 feeBasisPoints) private pure returns (uint256) {
         return (assets * feeBasisPoints) / _BASIS_POINT_SCALE;
     }
 
     /// @dev Calculates the fee part of an amount `assets` that already includes fees.
     /// Used in {IERC4626-deposit} and {IERC4626-redeem} operations.
-    function _feeOnTotal(
-        uint256 assets,
-        uint256 feeBasisPoints
-    ) private pure returns (uint256) {
-        return
-            (assets * feeBasisPoints) / (feeBasisPoints + _BASIS_POINT_SCALE);
+    function _feeOnTotal(uint256 assets, uint256 feeBasisPoints) private pure returns (uint256) {
+        return (assets * feeBasisPoints) / (feeBasisPoints + _BASIS_POINT_SCALE);
     }
 }

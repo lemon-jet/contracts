@@ -33,12 +33,7 @@ contract LemonJetTest is Test, HelperContract {
         ljtToken = new ERC20Mock();
         referrals = new Referral();
         ljtGame = new LemonJet(
-            address(s_wrapper),
-            reserveFund,
-            address(ljtToken),
-            address(referrals),
-            "Vault LemonJet",
-            "VLJT"
+            address(s_wrapper), reserveFund, address(ljtToken), address(referrals), "Vault LemonJet", "VLJT"
         );
         ljtToken.mint(address(ljtGame), 500 ether);
         ljtToken.mint(player, 500 ether);
@@ -49,16 +44,12 @@ contract LemonJetTest is Test, HelperContract {
     function testPlayLjt() public {
         vm.prank(player);
         vm.deal(player, 1 ether);
-        ljtGame.play{value: 1 ether}(1 ether, referralAddress, 150);
+        ljtGame.play{value: 1 ether}(1 ether, 150, referralAddress);
         uint256 requestId = s_wrapper.lastRequestId();
 
         address _player = ljtGame.requestIdToPlayer(requestId);
 
-        (
-            uint256 potentialWinnings,
-            uint256 threshold,
-            uint8 statusBeforeRelease
-        ) = ljtGame.games(player);
+        (uint256 potentialWinnings, uint256 threshold, uint8 statusBeforeRelease) = ljtGame.games(player);
         assertEq(potentialWinnings, (1 ether * 150) / 100);
         assertEq(statusBeforeRelease, 1);
         assertEq(_player, player);
@@ -69,7 +60,7 @@ contract LemonJetTest is Test, HelperContract {
 
         ljtGame.rawFulfillRandomWords(requestId, randomWords);
 
-        (, , uint8 statusAfterRelease) = ljtGame.games(player);
+        (,, uint8 statusAfterRelease) = ljtGame.games(player);
 
         assertEq(statusAfterRelease, 2);
     }
@@ -77,7 +68,7 @@ contract LemonJetTest is Test, HelperContract {
     function testFailPlayBeforeRelease() public {
         vm.prank(player);
         vm.deal(player, 1 ether);
-        ljtGame.play{value: 1 ether}(1 ether, referralAddress, 150);
-        ljtGame.play{value: 1 ether}(1 ether, referralAddress, 150);
+        ljtGame.play{value: 1 ether}(1 ether, 150, referralAddress);
+        ljtGame.play{value: 1 ether}(1 ether, 150, referralAddress);
     }
 }
