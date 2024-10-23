@@ -25,6 +25,7 @@ contract LemonJet is ILemonJet, Vault, VRFV2PlusWrapperConsumerBase {
 
     IReferral public immutable referrals;
     // 1 storage slot
+
     struct JetGame {
         uint224 potentialWinnings;
         uint24 threshold; // always less than threshold (1000_00_00)
@@ -58,7 +59,6 @@ contract LemonJet is ILemonJet, Vault, VRFV2PlusWrapperConsumerBase {
         _play(bet, coef, referral);
     }
 
-
     /// @param bet is amount of tokens to play
     /// @param coef is multiplier of bet
     /// @param referral is address of referrer (optional)
@@ -75,14 +75,14 @@ contract LemonJet is ILemonJet, Vault, VRFV2PlusWrapperConsumerBase {
         latestGames[msg.sender] = JetGame(uint224(potentialWinnings), uint24(calcThresholdForCoef(coef)), STARTED);
 
         uint256 fee = bet / 100; // 1% fee
-        // if referral exists, issue vault shares by 0.3% of bet fee
+        // if referral exists, issue vault shares by 0.3% of bet
         if (referral != address(0)) {
             uint256 referralReward = (bet * 30) / 100; // 30% of fee
             _mintByAssets(referral, referralReward);
             emit ReferralRewardIssued(referral, msg.sender, referralReward);
         }
 
-        // issue vault shares by 0.2% of bet fee
+        // issue vault shares by 0.2% of bet
         uint256 reserveFundFee = (fee * 20) / 100; // 20% of fee
         _mintByAssets(reserveFund, reserveFundFee);
 
