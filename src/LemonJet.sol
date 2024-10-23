@@ -24,7 +24,7 @@ contract LemonJet is ILemonJet, Vault, VRFV2PlusWrapperConsumerBase {
     mapping(uint256 => address) private requestIdToPlayer;
 
     IReferral public immutable referrals;
-
+    // 1 storage slot
     struct JetGame {
         uint224 potentialWinnings;
         uint24 threshold; // always less than threshold (1000_00_00)
@@ -58,8 +58,7 @@ contract LemonJet is ILemonJet, Vault, VRFV2PlusWrapperConsumerBase {
         _play(bet, coef, referral);
     }
 
-    /// @notice Explain to an end user what this does
-    /// @dev Explain to a developer any extra details
+
     /// @param bet is amount of tokens to play
     /// @param coef is multiplier of bet
     /// @param referral is address of referrer (optional)
