@@ -5,7 +5,6 @@ import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/Safe
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {VRFV2PlusWrapperConsumerBase} from
     "@chainlink-contracts-1.2.0/src/v0.8/vrf/dev/VRFV2PlusWrapperConsumerBase.sol";
-import {VRFV2PlusClient} from "@chainlink-contracts-1.2.0/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 import {ILemonJet} from "./interfaces/ILemonJet.sol";
 import {Vault} from "./Vault.sol";
 import {IReferral} from "./interfaces/IReferral.sol";
@@ -18,12 +17,13 @@ contract LemonJet is ILemonJet, Vault, VRFV2PlusWrapperConsumerBase {
     uint8 private constant STARTED = 1;
     uint8 private constant RELEASED = 2;
 
-    uint256 public constant houseEdge = 1; // %
+    uint256 private constant houseEdge = 1; // %
     uint256 private constant threshold = 1e7; // 1000_00_00
-    IReferral public immutable referrals;
 
-    mapping(address => JetGame) public games;
-    mapping(uint256 => address) public requestIdToPlayer;
+    mapping(address => JetGame) public latestGames;
+    mapping(uint256 => address) private requestIdToPlayer;
+
+    IReferral public immutable referrals;
 
     struct JetGame {
         uint224 potentialWinnings;
@@ -32,11 +32,17 @@ contract LemonJet is ILemonJet, Vault, VRFV2PlusWrapperConsumerBase {
     }
 
     constructor(
+        //  VRF Wrapper 2.5 for Direct Funding
         address wrapperAddress,
+        // EOA which receives a fee
         address _reserveFund,
+        // ERC20 token for ERC4626 Vault
         address _asset,
+        // Referral contract
         address _referral,
+        // Vault shares token name
         string memory _name,
+        // Vault shares token symbol
         string memory _symbol
     ) VRFV2PlusWrapperConsumerBase(wrapperAddress) Vault(_asset, _reserveFund, _name, _symbol) {
         referrals = IReferral(_referral);
@@ -52,25 +58,32 @@ contract LemonJet is ILemonJet, Vault, VRFV2PlusWrapperConsumerBase {
         _play(bet, coef, referral);
     }
 
+    /// @notice Explain to an end user what this does
+    /// @dev Explain to a developer any extra details
+    /// @param bet is amount of tokens to play
+    /// @param coef is multiplier of bet
+    /// @param referral is address of referrer (optional)
     function _play(uint256 bet, uint16 coef, address referral) private {
-        require(bet >= 1000, BetAmountBelowLimit(1000));
+        require(bet >= 1000, BetAmountBelowLimit(1000)); // required precision to get 0.1% of bet
         require(coef >= 1_01 && coef <= 5000_00, InvalidMultiplier()); // 1.01 <= coef <= 5000.00
         uint256 potentialWinnings = (bet * coef) / 100;
         uint256 _maxWinAmount = maxWinAmount();
         require(potentialWinnings <= maxWinAmount(), BetAmountAboveLimit(_maxWinAmount));
-        require(games[msg.sender].status != STARTED, AlreadyInGame());
+        require(latestGames[msg.sender].status != STARTED, AlreadyInGame()); // parallel games are not supported
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), bet);
         uint256 requestId = _requestRandomWord();
         requestIdToPlayer[requestId] = msg.sender;
-        games[msg.sender] = JetGame(uint224(potentialWinnings), uint24(calcThresholdForCoef(coef)), STARTED);
+        latestGames[msg.sender] = JetGame(uint224(potentialWinnings), uint24(calcThresholdForCoef(coef)), STARTED);
 
         uint256 fee = bet / 100; // 1% fee
+        // if referral exists, issue vault shares by 0.3% of bet fee
         if (referral != address(0)) {
             uint256 referralReward = (bet * 30) / 100; // 30% of fee
             _mintByAssets(referral, referralReward);
             emit ReferralRewardIssued(referral, msg.sender, referralReward);
         }
 
+        // issue vault shares by 0.2% of bet fee
         uint256 reserveFundFee = (fee * 20) / 100; // 20% of fee
         _mintByAssets(reserveFund, reserveFundFee);
 
@@ -88,14 +101,16 @@ contract LemonJet is ILemonJet, Vault, VRFV2PlusWrapperConsumerBase {
     }
 
     function _releaseGame(uint256 requestId, uint256 randomNumber) private {
+        // full trust in chainlink that needed data actualy exists
         address player = requestIdToPlayer[requestId];
-        JetGame storage game = games[player];
+        JetGame storage game = latestGames[player];
         uint256 payout = game.potentialWinnings;
 
         randomNumber = (randomNumber % 1000_00) + 1;
 
         // check if a player has won
         if (randomNumber <= game.threshold) {
+            // winnings may exceed `maxWinAmount()` at the start of this play. It's acceptable.
             _payoutWin(player, payout);
         } else {
             payout = 0;
@@ -104,7 +119,13 @@ contract LemonJet is ILemonJet, Vault, VRFV2PlusWrapperConsumerBase {
         game.status = RELEASED;
         delete requestIdToPlayer[requestId];
 
-        emit GameReleased(requestId, player, payout, randomNumber, (threshold * (100 - houseEdge)) / 100 / randomNumber);
+        emit GameReleased(
+            requestId,
+            player,
+            payout,
+            randomNumber,
+            (threshold * (100 - houseEdge)) / 100 / randomNumber // the maximum coef that could win and give profit
+        );
     }
 
     function _requestRandomWord() private returns (uint256 requestId) {
@@ -120,11 +141,13 @@ contract LemonJet is ILemonJet, Vault, VRFV2PlusWrapperConsumerBase {
         }
 
         // foundry gas report estimate the `rawFulfillRandomWords` at 47738
-        // zero block confirmations need to get a random number as fast as possible because
+        // zero block confirmations need to get a random number as fast as possible because and chain reorganization can't negatively affect
         (requestId,) = requestRandomnessPayInNative(50_000, 0, 1, extraArgs);
     }
 
+    /// @param referral can only be set once
     function _setReferralIfNotExists(address referral) private returns (address) {
+        // referral set for tx.origin
         address _referral = referrals.getReferral(tx.origin);
         if (referral != address(0) && _referral == address(0)) {
             referrals.setReferral(referral);
